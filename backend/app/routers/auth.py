@@ -1,0 +1,108 @@
+"""Authentication router handling registration, login, and profile lookup."""
+
+from typing import Annotated
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_database_session
+from app.middleware.auth import get_current_user
+from app.models.user import User
+from app.schemas.auth import TokenResponse, UserLoginRequest, UserRegisterRequest, UserResponse
+from app.services.auth_service import create_access_token, hash_password, verify_password
+
+router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
+
+
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user account",
+)
+async def register_user(
+    payload: UserRegisterRequest,
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+) -> User:
+    """Register a new user account with email and password.
+
+    Args:
+        payload: User registration details.
+        session: Active asynchronous database session.
+
+    Returns:
+        User: Created user profile.
+
+    Raises:
+        HTTPException: 409 Conflict if email is already taken.
+    """
+    check_statement = select(User).where(User.email == payload.email)
+    existing_user = (await session.execute(check_statement)).scalar_one_or_none()
+    if existing_user is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email address already exists.",
+        )
+
+    new_user = User(
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        display_name=payload.display_name,
+    )
+    session.add(new_user)
+    await session.commit()
+    await session.refresh(new_user)
+    return new_user
+
+
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Authenticate and receive an access token",
+)
+async def login_user(
+    payload: UserLoginRequest,
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+) -> TokenResponse:
+    """Authenticate with email and password to receive a signed JWT bearer token.
+
+    Args:
+        payload: Login credentials.
+        session: Active asynchronous database session.
+
+    Returns:
+        TokenResponse: Access token payload.
+
+    Raises:
+        HTTPException: 401 Unauthorized for invalid credentials.
+    """
+    statement = select(User).where(User.email == payload.email)
+    user = (await session.execute(statement)).scalar_one_or_none()
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = create_access_token(user_id=user.id)
+    return TokenResponse(access_token=token)
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Retrieve current user profile",
+)
+async def get_current_user_profile(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Retrieve profile data for the authenticated caller.
+
+    Args:
+        current_user: Authenticated user model.
+
+    Returns:
+        User: Profile record.
+    """
+    return current_user

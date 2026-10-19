@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: opflow-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: opflow_user
+      POSTGRES_PASSWORD: opflow_password
+      POSTGRES_DB: opflow_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - opflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opflow_user -d opflow_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: opflow-backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://opflow_user:opflow_password@postgres:5432/opflow_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: opflow-frontend
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  opflow_pgdata:
