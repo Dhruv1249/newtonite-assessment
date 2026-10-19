@@ -13,6 +13,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
+RUN cp -r .next/static .next/standalone/.next/static
+RUN mkdir -p public && cp -r public .next/standalone/public
+
 EXPOSE 3000
 
 ENV PORT=3000
