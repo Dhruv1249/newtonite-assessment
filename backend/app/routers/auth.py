@@ -140,3 +140,70 @@ async def search_users(
     result = await session.execute(statement)
     users = list(result.scalars().all())
     return [UserResponse.model_validate(u) for u in users]
+
+
+@router.get(
+    "/users",
+    response_model=list[UserResponse],
+    summary="List all registered platform users",
+)
+async def list_all_users(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+) -> list[UserResponse]:
+    """Retrieve all user accounts registered across the operational platform.
+
+    Args:
+        current_user: Authenticated caller.
+        session: Active database session.
+
+    Returns:
+        list[UserResponse]: All registered users ordered by display name.
+    """
+    statement = select(User).order_by(User.display_name.asc()).limit(100)
+    result = await session.execute(statement)
+    users = list(result.scalars().all())
+    return [UserResponse.model_validate(u) for u in users]
+
+
+@router.post(
+    "/users",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new user account (Admin / Team management)",
+)
+async def create_user_record(
+    payload: UserRegisterRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+) -> UserResponse:
+    """Create a new user account directly from the user administration interface.
+
+    Args:
+        payload: User registration credentials.
+        current_user: Authenticated caller.
+        session: Active database session.
+
+    Returns:
+        UserResponse: Created user profile.
+
+    Raises:
+        HTTPException: 409 Conflict if email is already taken.
+    """
+    check_statement = select(User).where(User.email == payload.email)
+    existing_user = (await session.execute(check_statement)).scalar_one_or_none()
+    if existing_user is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email address already exists.",
+        )
+
+    new_user = User(
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        display_name=payload.display_name,
+    )
+    session.add(new_user)
+    await session.commit()
+    await session.refresh(new_user)
+    return UserResponse.model_validate(new_user)

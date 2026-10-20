@@ -123,6 +123,17 @@ export function Navbar(): React.JSX.Element {
                 <GitBranch className="w-4 h-4" />
                 <span>Workflows</span>
               </Link>
+              <Link
+                href="/users"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive("/users")
+                    ? "bg-accent/15 text-accent font-semibold"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Users</span>
+              </Link>
             </nav>
           )}
         </div>

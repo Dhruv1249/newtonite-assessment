@@ -14,14 +14,21 @@ import {
   useAddTeamMember,
   useUpdateMemberRole,
   useUserSearch,
+  useWorkflows,
+  useUpdateTeam,
 } from "@/hooks/use-teams";
 import { User } from "@/types";
 import {
+  AlertTriangle,
   ArrowLeft,
+  CheckCircle,
   GitBranch,
+  Save,
   Search,
+  Settings,
   UserPlus,
   Users,
+  Workflow as WorkflowIcon,
 } from "lucide-react";
 
 /**
@@ -42,9 +49,20 @@ export default function TeamManagementPage(): React.JSX.Element {
   const { data: team, isLoading: teamLoading } = useTeam(teamId);
   const { data: members, isLoading: membersLoading } = useTeamMembers(teamId);
   const { data: userSearchResults } = useUserSearch(searchQuery);
+  const { data: workflows } = useWorkflows();
 
   const addMemberMutation = useAddTeamMember();
   const updateRoleMutation = useUpdateMemberRole();
+  const updateTeamMutation = useUpdateTeam();
+
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>("");
+  const [workflowUpdateSuccess, setWorkflowUpdateSuccess] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (team?.workflow_id) {
+      setSelectedWorkflowId(team.workflow_id);
+    }
+  }, [team?.workflow_id]);
 
   const currentMembership = members?.find((m) => m.user_id === user?.id);
   const isAdmin = currentMembership?.role === "admin";
@@ -81,6 +99,17 @@ export default function TeamManagementPage(): React.JSX.Element {
       userId: targetUserId,
       role,
     });
+  };
+
+  const handleWorkflowChange = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    if (!selectedWorkflowId || selectedWorkflowId === team?.workflow_id) return;
+    await updateTeamMutation.mutateAsync({
+      teamId,
+      workflow_id: selectedWorkflowId,
+    });
+    setWorkflowUpdateSuccess(true);
+    setTimeout(() => setWorkflowUpdateSuccess(false), 3000);
   };
 
   if (teamLoading) {
@@ -206,6 +235,66 @@ export default function TeamManagementPage(): React.JSX.Element {
                 <span className="font-mono text-text-muted text-3xs">{selectedUser.id}</span>
               </div>
             )}
+          </form>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="bg-white rounded-2xl border border-surface-deep p-6 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between border-b border-surface-deep/60 pb-3">
+            <div className="flex items-center gap-2 text-text-primary font-bold text-sm">
+              <WorkflowIcon className="w-4 h-4 text-accent" />
+              <span>Assigned State Machine Workflow</span>
+            </div>
+            <Link
+              href={`/teams/${team.id}/workflow`}
+              className="text-2xs text-accent hover:underline flex items-center gap-1 font-semibold"
+            >
+              <span>Edit State Rules</span>
+              <GitBranch className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {workflowUpdateSuccess && (
+            <div className="p-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span>Workflow template successfully applied to team.</span>
+            </div>
+          )}
+
+          {updateTeamMutation.isError && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>{updateTeamMutation.error?.message || "Failed to switch workflow."}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleWorkflowChange} className="flex flex-col sm:flex-row gap-3 items-end sm:items-center">
+            <div className="flex-1 w-full">
+              <label className="block text-2xs text-text-muted uppercase tracking-wider mb-1 font-semibold">
+                Select Active Workflow Definition
+              </label>
+              <select
+                value={selectedWorkflowId}
+                onChange={(e) => setSelectedWorkflowId(e.target.value)}
+                className="w-full px-3.5 py-2 bg-surface/50 border border-surface-deep rounded-xl text-xs text-text-primary focus:outline-hidden focus:border-accent focus:bg-white transition-colors"
+              >
+                {workflows?.map((wf) => (
+                  <option key={wf.id} value={wf.id}>
+                    {wf.name} ({wf.states.length} states, {wf.transitions.length} transitions)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={updateTeamMutation.isPending || selectedWorkflowId === team.workflow_id}
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white font-semibold text-xs rounded-xl transition-colors shadow-2xs flex items-center gap-1.5 disabled:opacity-50 flex-shrink-0"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{updateTeamMutation.isPending ? "Applying..." : "Apply Workflow"}</span>
+            </button>
           </form>
         </div>
       )}

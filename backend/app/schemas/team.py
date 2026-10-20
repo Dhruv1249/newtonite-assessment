@@ -22,6 +22,20 @@ class TeamCreateRequest(BaseModel):
     workflow_id: uuid.UUID | None = None
 
 
+class TeamUpdateRequest(BaseModel):
+    """Payload for updating an operational team's metadata or workflow binding.
+
+    Attributes:
+        name: Optional updated team name.
+        description: Optional updated description.
+        workflow_id: Optional updated workflow identifier to bind.
+    """
+
+    name: str | None = Field(default=None, min_length=2, max_length=255)
+    description: str | None = Field(default=None, max_length=1000)
+    workflow_id: uuid.UUID | None = None
+
+
 class TeamMemberAddRequest(BaseModel):
     """Payload for enrolling a user into a team.
 

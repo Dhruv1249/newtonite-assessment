@@ -7,7 +7,7 @@
 import React from "react";
 import Link from "next/link";
 import { useWorkflows } from "@/hooks/use-teams";
-import { GitBranch, Plus, Workflow as WorkflowIcon } from "lucide-react";
+import { ArrowRight, GitBranch, Plus, Workflow as WorkflowIcon } from "lucide-react";
 
 /**
  * Workflows library page component.
@@ -76,6 +76,13 @@ export default function WorkflowsPage(): React.JSX.Element {
                     <span className="font-mono">
                       Created {new Date(workflow.created_at).toLocaleDateString()}
                     </span>
+                    <Link
+                      href={`/teams/new?workflow_id=${workflow.id}`}
+                      className="ml-auto font-sans font-semibold text-accent hover:underline flex items-center gap-1"
+                    >
+                      <span>Create Team with this Workflow</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
                   </div>
                 </div>
 

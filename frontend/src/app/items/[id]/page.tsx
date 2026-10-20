@@ -36,6 +36,9 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldAlert,
+  GitBranch,
+  Lock,
+  Workflow as WorkflowIcon,
 } from "lucide-react";
 
 /**
@@ -233,30 +236,93 @@ export default function WorkItemDetailPage(): React.JSX.Element {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-surface-deep p-6 shadow-2xs space-y-3">
-            <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-              Workflow Transition Actions
-            </h3>
+          <div className="bg-white rounded-2xl border border-surface-deep p-6 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-surface-deep/60 pb-3">
+              <div className="flex items-center gap-2">
+                <WorkflowIcon className="w-4 h-4 text-accent" />
+                <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider">
+                  Workflow Lifecycle Pipeline
+                </h3>
+              </div>
+              {workflowData && (
+                <Link
+                  href={`/teams/${item.team_id}/workflow`}
+                  className="text-2xs text-text-muted hover:text-accent flex items-center gap-1 font-mono transition-colors"
+                >
+                  <span>{workflowData.name}</span>
+                  <GitBranch className="w-3 h-3" />
+                </Link>
+              )}
+            </div>
 
-            {allowedTransitions.length > 0 ? (
-              <div className="flex flex-wrap gap-2 pt-1">
+            {workflowData && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
+                  {workflowData.states.map((st, idx) => {
+                    const isCurrent = st.id === item.status;
+                    const canTransitionTo = allowedTransitions.some((t) => t.to === st.id);
+
+                    return (
+                      <React.Fragment key={st.id}>
+                        {idx > 0 && (
+                          <div className="w-3 h-0.5 bg-surface-deep flex-shrink-0" />
+                        )}
+                        <div
+                          className={`px-3 py-1.5 rounded-xl border text-xs font-medium flex items-center gap-1.5 flex-shrink-0 transition-all ${
+                            isCurrent
+                              ? "bg-accent text-white border-accent shadow-xs font-bold ring-2 ring-accent/30"
+                              : canTransitionTo
+                              ? "bg-accent-light/40 border-accent/40 text-accent hover:bg-accent hover:text-white cursor-pointer"
+                              : "bg-surface-raised/40 border-surface-deep text-text-muted"
+                          }`}
+                          onClick={() => {
+                            if (canTransitionTo) {
+                              handleTransition(st.id);
+                            }
+                          }}
+                        >
+                          {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                          <span>{st.label}</span>
+                          {canTransitionTo && <ArrowRight className="w-3 h-3 opacity-70" />}
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2 border-t border-surface-deep/40 flex items-center justify-between flex-wrap gap-2 text-2xs">
+                  <span className="text-text-muted">
+                    Your role in team: <strong className="uppercase font-mono text-text-secondary">{userRole}</strong>
+                  </span>
+                  {allowedTransitions.length > 0 ? (
+                    <span className="text-accent font-semibold">
+                      Click highlighted states above or advance below
+                    </span>
+                  ) : (
+                    <span className="text-text-muted italic flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      No further transitions authorized for your role
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {allowedTransitions.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-surface-deep/60">
                 {allowedTransitions.map((t) => (
                   <button
                     key={`${t.from}-${t.to}`}
                     type="button"
                     disabled={transitionMutation.isPending}
                     onClick={() => handleTransition(t.to)}
-                    className="px-4 py-2 bg-surface-raised hover:bg-accent hover:text-white border border-surface-deep rounded-xl text-xs font-semibold text-text-primary transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                    className="px-4 py-2 bg-accent hover:bg-accent-hover text-white border border-accent rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
                   >
                     <span>Advance to {t.to.replace(/_/g, " ").toUpperCase()}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-text-muted italic pt-1">
-                No transitions currently permitted from state &lsquo;{item.status}&rsquo; for role &lsquo;{userRole}&rsquo;.
-              </p>
             )}
 
             {transitionMutation.isError && !transitionMutation.error.isConflict && (

@@ -19,6 +19,7 @@ from app.schemas.team import (
     TeamMemberResponse,
     TeamMemberUpdateRequest,
     TeamResponse,
+    TeamUpdateRequest,
 )
 
 router = APIRouter(prefix="/api/v1/teams", tags=["Teams"])
@@ -178,6 +179,77 @@ async def get_team(
         created_at=team.created_at,
         member_count=member_count,
         user_role=role,
+    )
+
+
+@router.put(
+    "/{team_id}",
+    response_model=TeamResponse,
+    summary="Update operational team details or workflow binding (Admin required)",
+)
+async def update_team(
+    team_id: uuid.UUID,
+    payload: TeamUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+) -> TeamResponse:
+    """Update team properties including name, description, or assigned workflow state machine.
+
+    Requires team Admin role.
+
+    Args:
+        team_id: Target team identifier.
+        payload: Modified attributes.
+        current_user: Authenticated caller.
+        session: Active database session.
+
+    Returns:
+        TeamResponse: Updated team instance.
+
+    Raises:
+        HTTPException: 403 Forbidden if caller is not an Admin.
+        HTTPException: 404 Not Found if team or workflow does not exist.
+    """
+    caller_role = await verify_team_membership(current_user.id, team_id, session)
+    if caller_role != TeamRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only team administrators can update team configuration.",
+        )
+
+    statement = select(Team).where(Team.id == team_id)
+    team = (await session.execute(statement)).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found.")
+
+    if payload.name is not None:
+        team.name = payload.name
+    if payload.description is not None:
+        team.description = payload.description
+    if payload.workflow_id is not None:
+        wf_statement = select(Workflow).where(Workflow.id == payload.workflow_id)
+        wf = (await session.execute(wf_statement)).scalar_one_or_none()
+        if wf is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Referenced workflow definition not found.",
+            )
+        team.workflow_id = payload.workflow_id
+
+    await session.commit()
+    await session.refresh(team)
+
+    count_stmt = select(func.count(TeamMember.id)).where(TeamMember.team_id == team.id)
+    member_count = (await session.execute(count_stmt)).scalar_one()
+
+    return TeamResponse(
+        id=team.id,
+        name=team.name,
+        description=team.description,
+        workflow_id=team.workflow_id,
+        created_at=team.created_at,
+        member_count=member_count,
+        user_role=caller_role,
     )
 
 

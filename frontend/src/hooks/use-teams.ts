@@ -277,3 +277,73 @@ export function useUserSearch(query: string): UseQueryResult<User[], ApiError> {
     staleTime: 10000,
   });
 }
+
+export interface UpdateTeamPayload {
+  teamId: string;
+  name?: string;
+  description?: string;
+  workflow_id?: string;
+}
+
+/**
+ * Hook to update a team's metadata or workflow binding.
+ *
+ * @returns React Query mutation result
+ */
+export function useUpdateTeam(): UseMutationResult<Team, ApiError, UpdateTeamPayload> {
+  const queryClient = useQueryClient();
+
+  return useMutation<Team, ApiError, UpdateTeamPayload>({
+    mutationFn: (payload: UpdateTeamPayload) => {
+      const { teamId, ...body } = payload;
+      return apiFetch<Team>(`/api/v1/teams/${teamId}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: (data: Team) => {
+      queryClient.invalidateQueries({ queryKey: ["team", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow"] });
+    },
+  });
+}
+
+/**
+ * Hook to list all registered users across the platform.
+ *
+ * @returns React Query query result
+ */
+export function useUsers(): UseQueryResult<User[], ApiError> {
+  return useQuery<User[], ApiError>({
+    queryKey: ["users"],
+    queryFn: () => apiFetch<User[]>("/api/v1/auth/users"),
+  });
+}
+
+export interface CreateUserPayload {
+  email: string;
+  password: string;
+  display_name: string;
+}
+
+/**
+ * Hook to register a new platform user from the management view.
+ *
+ * @returns React Query mutation result
+ */
+export function useCreateUser(): UseMutationResult<User, ApiError, CreateUserPayload> {
+  const queryClient = useQueryClient();
+
+  return useMutation<User, ApiError, CreateUserPayload>({
+    mutationFn: (payload: CreateUserPayload) =>
+      apiFetch<User>("/api/v1/auth/users", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["user_search"] });
+    },
+  });
+}

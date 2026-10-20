@@ -4,23 +4,32 @@
  * Team creation page with workflow selector.
  */
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useCreateTeam } from "@/hooks/use-teams";
 import { useWorkflows } from "@/hooks/use-teams";
 import { AlertTriangle, ArrowLeft, ArrowRight, Users } from "lucide-react";
 
 /**
- * New team creation form page component.
+ * Team creation form inner component.
  *
  * @returns JSX Element
  */
-export default function NewTeamPage(): React.JSX.Element {
+function NewTeamForm(): React.JSX.Element {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryWorkflowId = searchParams.get("workflow_id") || "";
+
   const [name, setName] = useState<string>("");
   const [description, setDescription] = useState<string>("");
-  const [workflowId, setWorkflowId] = useState<string>("");
+  const [workflowId, setWorkflowId] = useState<string>(queryWorkflowId);
+
+  useEffect(() => {
+    if (queryWorkflowId) {
+      setWorkflowId(queryWorkflowId);
+    }
+  }, [queryWorkflowId]);
 
   const { data: workflows } = useWorkflows();
   const createTeamMutation = useCreateTeam();
@@ -137,5 +146,24 @@ export default function NewTeamPage(): React.JSX.Element {
         </div>
       </form>
     </div>
+  );
+}
+
+/**
+ * New team creation form page wrapped in suspense boundary.
+ *
+ * @returns JSX Element
+ */
+export default function NewTeamPage(): React.JSX.Element {
+  return (
+    <Suspense
+      fallback={
+        <div className="py-24 text-center text-xs text-text-muted">
+          Loading team creation...
+        </div>
+      }
+    >
+      <NewTeamForm />
+    </Suspense>
   );
 }
