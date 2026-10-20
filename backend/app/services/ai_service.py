@@ -4,6 +4,8 @@ Leverages Gemini Embedding 2 for vector representations and Gemini 3.1 Flash Lit
 with Gemini 3.5 Flash Lite backup for contextual generation.
 """
 
+import asyncio
+import functools
 import json
 from typing import Any
 import uuid
@@ -32,15 +34,23 @@ class AIService:
     async def generate_embedding(self, text: str) -> list[float]:
         """Generate a 3072-dimensional vector embedding for the supplied text.
 
+        Offloads the synchronous Gemini SDK call to a thread-pool executor so
+        the asyncio event loop is not blocked during network I/O.
+
         Args:
             text: Input string content to vectorize.
 
         Returns:
             list[float]: High-dimensional dense embedding vector.
         """
-        response = self._client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=text,
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            functools.partial(
+                self._client.models.embed_content,
+                model=EMBEDDING_MODEL,
+                contents=text,
+            ),
         )
         return list(response.embeddings[0].values)
 
@@ -51,6 +61,9 @@ class AIService:
     ) -> str:
         """Generate text completion using primary model with automatic fallback to backup model.
 
+        Offloads the synchronous Gemini SDK call to a thread-pool executor so
+        the asyncio event loop is not blocked during network I/O.
+
         Args:
             prompt: User prompt content.
             system_instruction: Optional system instruction steering model behavior.
@@ -58,19 +71,28 @@ class AIService:
         Returns:
             str: Generated textual response.
         """
+        loop = asyncio.get_event_loop()
         try:
-            response = self._client.models.generate_content(
-                model=PRIMARY_GENERATION_MODEL,
-                contents=prompt,
+            response = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    self._client.models.generate_content,
+                    model=PRIMARY_GENERATION_MODEL,
+                    contents=prompt,
+                ),
             )
             if response.text:
                 return response.text.strip()
         except (errors.ServerError, errors.APIError):
             pass
 
-        fallback_response = self._client.models.generate_content(
-            model=BACKUP_GENERATION_MODEL,
-            contents=prompt,
+        fallback_response = await loop.run_in_executor(
+            None,
+            functools.partial(
+                self._client.models.generate_content,
+                model=BACKUP_GENERATION_MODEL,
+                contents=prompt,
+            ),
         )
         return fallback_response.text.strip() if fallback_response.text else ""
 
@@ -163,7 +185,7 @@ class AIService:
             similarity = float(row[1]) if row[1] is not None else 0.0
             if similarity >= threshold:
                 duplicates.append({
-                    "item_id": item.id,
+                    "item_id": str(item.id),
                     "title": item.title,
                     "status": item.status,
                     "similarity_score": round(similarity, 4),
