@@ -64,7 +64,7 @@ export default function WorkItemDetailPage(): React.JSX.Element {
 
   const { data: teamData } = useTeam(item?.team_id || "");
   const { data: teamMembers } = useTeamMembers(item?.team_id || "");
-  const { data: workflowData } = useWorkflow(teamData?.workflow_id || "");
+  const { data: workflowData } = useWorkflow(item?.workflow_id || teamData?.workflow_id || "");
   const { data: comments, isLoading: commentsLoading } = useItemComments(itemId);
   const { data: activityLogs, isLoading: activityLoading } = useItemActivity(itemId);
   const { data: aiMetadata, isLoading: suggestionsLoading } = useItemSuggestions(itemId);

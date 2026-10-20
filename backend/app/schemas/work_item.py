@@ -27,6 +27,7 @@ class WorkItemCreateRequest(BaseModel):
     priority: ItemPriority = ItemPriority.MEDIUM
     category: str = Field(default="general", max_length=64)
     assignee_id: uuid.UUID | None = None
+    workflow_id: uuid.UUID | None = None
 
 
 class WorkItemUpdateRequest(BaseModel):
@@ -100,6 +101,7 @@ class WorkItemResponse(BaseModel):
     description: str
     team_id: uuid.UUID
     team_name: str | None = None
+    workflow_id: uuid.UUID | None = None
     created_by_id: uuid.UUID
     assignee_id: uuid.UUID | None = None
     status: str

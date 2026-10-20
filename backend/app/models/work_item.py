@@ -41,6 +41,7 @@ class WorkItem(Base):
         title: Concise summary of the operational issue.
         description: Detailed context and investigation notes.
         team_id: Owning team identifier.
+        workflow_id: Optional specific workflow lifecycle override.
         created_by_id: User who authored the item.
         assignee_id: User currently responsible for the work item.
         status: Current state matching the owning team's workflow.
@@ -52,6 +53,7 @@ class WorkItem(Base):
         created_at: Creation timestamp.
         updated_at: Last update timestamp.
         team: Relationship to the owning Team.
+        workflow: Relationship to the associated Workflow definition.
         creator: Relationship to the author User.
         assignee: Relationship to the assigned User.
         comments: Associated discussions and updates.
@@ -79,6 +81,12 @@ class WorkItem(Base):
         ForeignKey("teams.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
+    )
+    workflow_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workflows.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
     )
     created_by_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -137,6 +145,10 @@ class WorkItem(Base):
     team: Mapped["Team"] = relationship(
         "Team",
         back_populates="work_items",
+    )
+    workflow: Mapped["Workflow | None"] = relationship(
+        "Workflow",
+        foreign_keys=[workflow_id],
     )
     creator: Mapped["User"] = relationship(
         "User",

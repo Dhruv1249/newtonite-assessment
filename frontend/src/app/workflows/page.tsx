@@ -46,61 +46,67 @@ export default function WorkflowsPage(): React.JSX.Element {
           {workflows.map((workflow) => (
             <div
               key={workflow.id}
-              className="bg-white rounded-2xl border border-surface-deep p-5 shadow-2xs hover:border-accent/30 transition-colors"
+              className="bg-white rounded-2xl border border-surface-deep p-5 shadow-2xs hover:border-accent/30 transition-all space-y-4"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <WorkflowIcon className="w-4 h-4 text-accent flex-shrink-0" />
-                    <span className="font-bold text-sm text-text-primary truncate">
+                    <span className="font-bold text-sm text-text-primary">
                       {workflow.name}
                     </span>
                     {workflow.is_default && (
-                      <span className="text-2xs px-1.5 py-0.5 rounded bg-accent-light text-accent font-semibold border border-accent/20">
+                      <span className="text-2xs px-2 py-0.5 rounded-full bg-accent-light text-accent font-semibold border border-accent/20">
                         Default
                       </span>
                     )}
                   </div>
                   {workflow.description && (
-                    <p className="text-xs text-text-secondary pl-6">{workflow.description}</p>
+                    <p className="text-xs text-text-secondary pl-6 leading-relaxed">
+                      {workflow.description}
+                    </p>
                   )}
-                  <div className="flex items-center gap-4 pl-6 text-2xs text-text-muted">
-                    <span className="flex items-center gap-1">
-                      <WorkflowIcon className="w-3 h-3" />
-                      {workflow.states.length} states
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <GitBranch className="w-3 h-3" />
-                      {workflow.transitions.length} transitions
-                    </span>
-                    <span className="font-mono">
-                      Created {new Date(workflow.created_at).toLocaleDateString()}
-                    </span>
-                    <Link
-                      href={`/teams/new?workflow_id=${workflow.id}`}
-                      className="ml-auto font-sans font-semibold text-accent hover:underline flex items-center gap-1"
-                    >
-                      <span>Create Team with this Workflow</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 max-w-xs">
-                  {workflow.states.slice(0, 5).map((state) => (
+                <div className="flex flex-wrap gap-1.5 sm:max-w-xs pl-6 sm:pl-0">
+                  {workflow.states.slice(0, 6).map((state) => (
                     <span
                       key={state.id}
-                      className="text-2xs font-mono px-1.5 py-0.5 rounded bg-surface-raised border border-surface-deep text-text-muted"
+                      className="text-2xs font-mono px-2 py-0.5 rounded-md bg-surface-raised border border-surface-deep text-text-secondary whitespace-nowrap"
                     >
-                      {state.id}
+                      {state.label || state.id}
                     </span>
                   ))}
-                  {workflow.states.length > 5 && (
-                    <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-surface-raised border border-surface-deep text-text-muted">
-                      +{workflow.states.length - 5}
+                  {workflow.states.length > 6 && (
+                    <span className="text-2xs font-mono px-2 py-0.5 rounded-md bg-surface-raised border border-surface-deep text-text-muted whitespace-nowrap">
+                      +{workflow.states.length - 6} more
                     </span>
                   )}
                 </div>
+              </div>
+
+              <div className="pt-3 border-t border-surface-deep/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-2xs">
+                <div className="flex items-center gap-4 flex-wrap text-text-muted">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <WorkflowIcon className="w-3.5 h-3.5 text-accent" />
+                    <span className="font-semibold text-text-primary">{workflow.states.length}</span> states
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <GitBranch className="w-3.5 h-3.5 text-accent" />
+                    <span className="font-semibold text-text-primary">{workflow.transitions.length}</span> transitions
+                  </span>
+                  <span className="font-mono text-text-muted whitespace-nowrap">
+                    Created {new Date(workflow.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <Link
+                  href={`/teams/new?workflow_id=${workflow.id}`}
+                  className="font-semibold text-accent hover:text-accent-hover inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
+                >
+                  <span>Create Team with this Workflow</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </div>
           ))}

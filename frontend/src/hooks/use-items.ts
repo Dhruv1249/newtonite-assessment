@@ -78,6 +78,7 @@ export interface CreateItemPayload {
   priority: string;
   category: string;
   assignee_id?: string | null;
+  workflow_id?: string | null;
   idempotencyKey?: string;
 }
 

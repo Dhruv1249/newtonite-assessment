@@ -347,3 +347,51 @@ export function useCreateUser(): UseMutationResult<User, ApiError, CreateUserPay
     },
   });
 }
+
+export interface UpdateUserPayload {
+  userId: string;
+  display_name?: string;
+  email?: string;
+  password?: string;
+}
+
+/**
+ * Hook to update an existing user profile (Admin required).
+ *
+ * @returns React Query mutation result
+ */
+export function useUpdateUser(): UseMutationResult<User, ApiError, UpdateUserPayload> {
+  const queryClient = useQueryClient();
+
+  return useMutation<User, ApiError, UpdateUserPayload>({
+    mutationFn: ({ userId, ...payload }: UpdateUserPayload) =>
+      apiFetch<User>(`/api/v1/auth/users/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["user_search"] });
+    },
+  });
+}
+
+/**
+ * Hook to delete a platform user account (Admin required).
+ *
+ * @returns React Query mutation result
+ */
+export function useDeleteUser(): UseMutationResult<{ success: boolean; message: string }, ApiError, string> {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ success: boolean; message: string }, ApiError, string>({
+    mutationFn: (userId: string) =>
+      apiFetch<{ success: boolean; message: string }>(`/api/v1/auth/users/${userId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["user_search"] });
+    },
+  });
+}

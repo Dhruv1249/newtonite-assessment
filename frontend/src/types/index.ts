@@ -79,6 +79,7 @@ export interface WorkItem {
   description: string;
   team_id: string;
   team_name?: string;
+  workflow_id?: string | null;
   created_by_id: string;
   assignee_id: string | null;
   status: string;

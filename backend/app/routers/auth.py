@@ -1,17 +1,52 @@
 """Authentication router handling registration, login, profile lookup, and user search."""
 
 from typing import Annotated
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_database_session
 from app.middleware.auth import get_current_user
+from app.models.activity_log import ActivityLog
+from app.models.comment import Comment
+from app.models.team_member import TeamMember, TeamRole
 from app.models.user import User
-from app.schemas.auth import TokenResponse, UserLoginRequest, UserRegisterRequest, UserResponse
+from app.models.work_item import WorkItem
+from app.schemas.auth import (
+    TokenResponse,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
+    UserUpdateRequest,
+)
 from app.services.auth_service import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
+
+
+async def check_is_admin(user: User, session: AsyncSession) -> bool:
+    """Verify whether a user possesses administrative privileges across the platform.
+
+    Args:
+        user: The authenticated user to inspect.
+        session: Active asynchronous database session.
+
+    Returns:
+        bool: True if user is platform administrator or team admin.
+    """
+    if user.email == "admin@opflow.internal":
+        return True
+    statement = (
+        select(TeamMember.id)
+        .where(
+            TeamMember.user_id == user.id,
+            TeamMember.role == TeamRole.ADMIN.value,
+        )
+        .limit(1)
+    )
+    result = await session.execute(statement)
+    return result.scalar_one_or_none() is not None
 
 
 @router.post(
@@ -207,3 +242,145 @@ async def create_user_record(
     await session.commit()
     await session.refresh(new_user)
     return UserResponse.model_validate(new_user)
+
+
+@router.put(
+    "/users/{user_id}",
+    response_model=UserResponse,
+    summary="Update an existing user profile (Admin required)",
+)
+async def update_user_record(
+    user_id: uuid.UUID,
+    payload: UserUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+) -> UserResponse:
+    """Modify user credentials, email, or display name with administrative authorization.
+
+    Args:
+        user_id: Target user identifier to update.
+        payload: Updatable profile attributes.
+        current_user: Authenticated caller performing administrative action.
+        session: Active asynchronous database session.
+
+    Returns:
+        UserResponse: Serialized updated user profile.
+
+    Raises:
+        HTTPException: 403 Forbidden if caller lacks administrative privileges.
+        HTTPException: 404 Not Found if designated user does not exist.
+        HTTPException: 409 Conflict if updated email is already registered.
+    """
+    is_admin = await check_is_admin(current_user, session)
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform administrators can modify user accounts.",
+        )
+
+    statement = select(User).where(User.id == user_id)
+    target_user = (await session.execute(statement)).scalar_one_or_none()
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found.",
+        )
+
+    if payload.email is not None and payload.email != target_user.email:
+        email_check = select(User).where(User.email == payload.email)
+        existing = (await session.execute(email_check)).scalar_one_or_none()
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email address already exists.",
+            )
+        target_user.email = payload.email
+
+    if payload.display_name is not None:
+        target_user.display_name = payload.display_name
+
+    if payload.password is not None:
+        target_user.password_hash = hash_password(payload.password)
+
+    await session.commit()
+    await session.refresh(target_user)
+    return UserResponse.model_validate(target_user)
+
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a user account and reassign authored entities (Admin required)",
+)
+async def delete_user_record(
+    user_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+) -> dict[str, str | bool]:
+    """Remove user account from platform, safely reassigning dependent historical entities.
+
+    Reassigns authored work items, comments, and audit logs to the active administrator
+    and clears assignee references before deleting the user record.
+
+    Args:
+        user_id: Target user identifier to remove.
+        current_user: Authenticated administrator performing deletion.
+        session: Active asynchronous database session.
+
+    Returns:
+        dict[str, str | bool]: Confirmation status and deletion message.
+
+    Raises:
+        HTTPException: 400 Bad Request if administrator attempts self-deletion.
+        HTTPException: 403 Forbidden if caller lacks administrative privileges.
+        HTTPException: 404 Not Found if target user does not exist.
+    """
+    is_admin = await check_is_admin(current_user, session)
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform administrators can delete user accounts.",
+        )
+
+    if current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Administrators cannot delete their own active user account.",
+        )
+
+    statement = select(User).where(User.id == user_id)
+    target_user = (await session.execute(statement)).scalar_one_or_none()
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found.",
+        )
+
+    await session.execute(
+        update(WorkItem)
+        .where(WorkItem.created_by_id == user_id)
+        .values(created_by_id=current_user.id)
+    )
+    await session.execute(
+        update(WorkItem)
+        .where(WorkItem.assignee_id == user_id)
+        .values(assignee_id=None)
+    )
+    await session.execute(
+        update(Comment)
+        .where(Comment.user_id == user_id)
+        .values(user_id=current_user.id)
+    )
+    await session.execute(
+        update(ActivityLog)
+        .where(ActivityLog.user_id == user_id)
+        .values(user_id=current_user.id)
+    )
+
+    await session.delete(target_user)
+    await session.commit()
+
+    return {
+        "success": True,
+        "message": f"User account {target_user.display_name} deleted successfully.",
+    }

@@ -19,6 +19,20 @@ class UserRegisterRequest(BaseModel):
     display_name: str = Field(min_length=2, max_length=255)
 
 
+class UserUpdateRequest(BaseModel):
+    """Payload for updating user profile attributes.
+
+    Attributes:
+        display_name: Optional new display name.
+        email: Optional new email address.
+        password: Optional new raw password.
+    """
+
+    display_name: str | None = Field(default=None, min_length=2, max_length=255)
+    email: EmailStr | None = None
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
 class UserLoginRequest(BaseModel):
     """Payload for user authentication.
 

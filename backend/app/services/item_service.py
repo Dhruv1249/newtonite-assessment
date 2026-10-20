@@ -73,7 +73,18 @@ class ItemService:
                 detail="Owning team or associated workflow not found.",
             )
 
-        initial_status = WorkflowEngine.get_initial_state(team.workflow)
+        target_workflow = team.workflow
+        if payload.workflow_id is not None:
+            custom_wf_stmt = select(Workflow).where(Workflow.id == payload.workflow_id)
+            custom_wf = (await session.execute(custom_wf_stmt)).scalar_one_or_none()
+            if custom_wf is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Specified workflow definition not found.",
+                )
+            target_workflow = custom_wf
+
+        initial_status = WorkflowEngine.get_initial_state(target_workflow)
 
         if payload.assignee_id is not None:
             await verify_team_membership(payload.assignee_id, payload.team_id, session)
@@ -83,6 +94,7 @@ class ItemService:
             title=payload.title,
             description=payload.description,
             team_id=payload.team_id,
+            workflow_id=target_workflow.id,
             created_by_id=actor.id,
             assignee_id=payload.assignee_id,
             status=initial_status,
@@ -393,21 +405,28 @@ class ItemService:
                 ),
             )
 
-        team_statement = (
-            select(Team)
-            .options(selectinload(Team.workflow))
-            .where(Team.id == item.team_id)
-        )
-        team_result = await session.execute(team_statement)
-        team = team_result.scalar_one_or_none()
-        if team is None or team.workflow is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Workflow definition not found for owning team.",
+        target_workflow = None
+        if item.workflow_id is not None:
+            custom_wf_stmt = select(Workflow).where(Workflow.id == item.workflow_id)
+            target_workflow = (await session.execute(custom_wf_stmt)).scalar_one_or_none()
+
+        if target_workflow is None:
+            team_statement = (
+                select(Team)
+                .options(selectinload(Team.workflow))
+                .where(Team.id == item.team_id)
             )
+            team_result = await session.execute(team_statement)
+            team = team_result.scalar_one_or_none()
+            if team is None or team.workflow is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Workflow definition not found for owning team.",
+                )
+            target_workflow = team.workflow
 
         WorkflowEngine.validate_transition(
-            workflow=team.workflow,
+            workflow=target_workflow,
             current_status=item.status,
             target_status=payload.target_status,
             actor_role=actor_role,

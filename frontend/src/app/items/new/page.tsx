@@ -8,13 +8,15 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCreateItem, useSemanticSearch } from "@/hooks/use-items";
-import { useTeams, useTeamMembers } from "@/hooks/use-teams";
+import { useTeams, useTeamMembers, useWorkflows, useWorkflow } from "@/hooks/use-teams";
 import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  GitBranch,
   Layers,
   Sparkles,
+  Workflow as WorkflowIcon,
 } from "lucide-react";
 
 /**
@@ -27,6 +29,7 @@ export default function NewWorkItemPage(): React.JSX.Element {
   const [title, setTitle] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [teamId, setTeamId] = useState<string>("");
+  const [workflowId, setWorkflowId] = useState<string>("");
   const [priority, setPriority] = useState<string>("medium");
   const [category, setCategory] = useState<string>("general");
   const [assigneeId, setAssigneeId] = useState<string>("");
@@ -34,6 +37,9 @@ export default function NewWorkItemPage(): React.JSX.Element {
 
   const { data: teamsData } = useTeams();
   const { data: teamMembersData } = useTeamMembers(teamId);
+  const { data: workflowsData } = useWorkflows();
+  const selectedTeam = teamsData?.find((t) => t.id === teamId);
+  const { data: teamWorkflow } = useWorkflow(selectedTeam?.workflow_id || "");
   const createItemMutation = useCreateItem();
 
   useEffect(() => {
@@ -61,6 +67,7 @@ export default function NewWorkItemPage(): React.JSX.Element {
         priority,
         category,
         assignee_id: assigneeId || null,
+        workflow_id: workflowId || undefined,
         idempotencyKey,
       });
       router.push(`/items/${created.id}`);
@@ -227,6 +234,37 @@ export default function NewWorkItemPage(): React.JSX.Element {
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <WorkflowIcon className="w-3.5 h-3.5 text-accent" />
+              <span>Workflow State Machine</span>
+            </span>
+            {workflowId ? (
+              <span className="text-2xs text-accent font-semibold">Custom item workflow</span>
+            ) : (
+              <span className="text-2xs text-text-muted font-normal">Team default</span>
+            )}
+          </label>
+          <select
+            value={workflowId}
+            onChange={(e) => setWorkflowId(e.target.value)}
+            className="w-full px-3 py-2.5 bg-surface/50 border border-surface-deep rounded-xl text-sm text-text-primary focus:outline-hidden focus:border-accent focus:bg-white transition-colors"
+          >
+            <option value="">
+              Use Owning Team&apos;s Default Workflow {teamWorkflow ? `(${teamWorkflow.name})` : ""}
+            </option>
+            {workflowsData?.map((wf) => (
+              <option key={wf.id} value={wf.id}>
+                {wf.name} ({wf.states.length} states, {wf.transitions.length} transitions)
+              </option>
+            ))}
+          </select>
+          <p className="text-2xs text-text-secondary mt-1">
+            Choose whether to advance this item using the owning team&apos;s default state machine or select a specialized workflow template.
+          </p>
         </div>
 
         <div className="pt-4 border-t border-surface-deep flex items-center justify-between">
