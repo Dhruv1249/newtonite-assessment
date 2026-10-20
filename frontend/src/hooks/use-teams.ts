@@ -16,6 +16,7 @@ import {
   DashboardStats,
   Team,
   TeamMember,
+  User,
   Workflow,
 } from "@/types";
 
@@ -203,5 +204,76 @@ export function useDashboardStats(): UseQueryResult<DashboardStats, ApiError> {
   return useQuery<DashboardStats, ApiError>({
     queryKey: ["dashboard", "stats"],
     queryFn: () => apiFetch<DashboardStats>("/api/v1/dashboard/stats"),
+  });
+}
+
+export interface CreateTeamPayload {
+  name: string;
+  description?: string;
+  workflow_id?: string;
+}
+
+/**
+ * Hook to create a new operational team.
+ *
+ * @returns React Query mutation result
+ */
+export function useCreateTeam(): UseMutationResult<Team, ApiError, CreateTeamPayload> {
+  const queryClient = useQueryClient();
+
+  return useMutation<Team, ApiError, CreateTeamPayload>({
+    mutationFn: (payload: CreateTeamPayload) =>
+      apiFetch<Team>("/api/v1/teams", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+    },
+  });
+}
+
+export interface CreateWorkflowPayload {
+  name: string;
+  description?: string;
+  states: Array<{ id: string; label: string; type: string }>;
+  transitions: Array<{ from_state: string; to_state: string; required_roles: string[] }>;
+  is_default?: boolean;
+}
+
+/**
+ * Hook to create a new workflow definition.
+ *
+ * @returns React Query mutation result
+ */
+export function useCreateWorkflow(): UseMutationResult<Workflow, ApiError, CreateWorkflowPayload> {
+  const queryClient = useQueryClient();
+
+  return useMutation<Workflow, ApiError, CreateWorkflowPayload>({
+    mutationFn: (payload: CreateWorkflowPayload) =>
+      apiFetch<Workflow>("/api/v1/workflows", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+    },
+  });
+}
+
+/**
+ * Hook to search users by name or email prefix for team enrollment.
+ *
+ * @param query - Partial name or email to match
+ * @returns React Query query result
+ */
+export function useUserSearch(query: string): UseQueryResult<User[], ApiError> {
+  return useQuery<User[], ApiError>({
+    queryKey: ["user_search", query],
+    queryFn: () =>
+      apiFetch<User[]>(`/api/v1/auth/users/search?q=${encodeURIComponent(query)}`),
+    enabled: query.trim().length >= 1,
+    staleTime: 10000,
   });
 }

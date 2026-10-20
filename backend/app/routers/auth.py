@@ -1,7 +1,7 @@
-"""Authentication router handling registration, login, and profile lookup."""
+"""Authentication router handling registration, login, profile lookup, and user search."""
 
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,3 +106,37 @@ async def get_current_user_profile(
         User: Profile record.
     """
     return current_user
+
+
+@router.get(
+    "/users/search",
+    response_model=list[UserResponse],
+    summary="Search users by name or email prefix",
+)
+async def search_users(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+    q: str = Query(min_length=1, max_length=100),
+) -> list[UserResponse]:
+    """Search registered users by display name or email prefix for team enrollment.
+
+    Args:
+        current_user: Authenticated caller.
+        session: Active database session.
+        q: Partial name or email search term.
+
+    Returns:
+        list[UserResponse]: Matching user profiles, capped at twenty results.
+    """
+    term = f"%{q.lower()}%"
+    statement = (
+        select(User)
+        .where(
+            User.email.ilike(term) | User.display_name.ilike(term)
+        )
+        .order_by(User.display_name.asc())
+        .limit(20)
+    )
+    result = await session.execute(statement)
+    users = list(result.scalars().all())
+    return [UserResponse.model_validate(u) for u in users]

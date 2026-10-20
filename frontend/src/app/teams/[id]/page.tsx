@@ -13,12 +13,13 @@ import {
   useTeamMembers,
   useAddTeamMember,
   useUpdateMemberRole,
+  useUserSearch,
 } from "@/hooks/use-teams";
+import { User } from "@/types";
 import {
   ArrowLeft,
   GitBranch,
-  Shield,
-  Trash2,
+  Search,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -33,11 +34,14 @@ export default function TeamManagementPage(): React.JSX.Element {
   const teamId = typeof params.id === "string" ? params.id : "";
   const { user } = useAuth();
 
-  const [newUserId, setNewUserId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [newMemberRole, setNewMemberRole] = useState<"admin" | "lead" | "member" | "viewer">("member");
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
   const { data: team, isLoading: teamLoading } = useTeam(teamId);
   const { data: members, isLoading: membersLoading } = useTeamMembers(teamId);
+  const { data: userSearchResults } = useUserSearch(searchQuery);
 
   const addMemberMutation = useAddTeamMember();
   const updateRoleMutation = useUpdateMemberRole();
@@ -45,15 +49,27 @@ export default function TeamManagementPage(): React.JSX.Element {
   const currentMembership = members?.find((m) => m.user_id === user?.id);
   const isAdmin = currentMembership?.role === "admin";
 
+  const existingMemberIds = new Set(members?.map((m) => m.user_id) || []);
+  const filteredSearchResults = userSearchResults?.filter(
+    (u) => !existingMemberIds.has(u.id)
+  );
+
+  const handleSelectUser = (foundUser: User): void => {
+    setSelectedUser(foundUser);
+    setSearchQuery(foundUser.display_name);
+    setShowDropdown(false);
+  };
+
   const handleAddMember = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    if (!newUserId) return;
+    if (!selectedUser) return;
     await addMemberMutation.mutateAsync({
       teamId,
-      userId: newUserId,
+      userId: selectedUser.id,
       role: newMemberRole,
     });
-    setNewUserId("");
+    setSelectedUser(null);
+    setSearchQuery("");
   };
 
   const handleRoleChange = async (
@@ -118,34 +134,78 @@ export default function TeamManagementPage(): React.JSX.Element {
             <UserPlus className="w-4 h-4 text-accent" />
             <span>Enroll Team Member</span>
           </div>
-          <form onSubmit={handleAddMember} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              required
-              placeholder="User UUID identifier..."
-              value={newUserId}
-              onChange={(e) => setNewUserId(e.target.value)}
-              className="flex-1 px-3.5 py-2 bg-surface/50 border border-surface-deep rounded-xl text-xs text-text-primary focus:outline-hidden focus:border-accent focus:bg-white transition-colors"
-            />
-            <select
-              value={newMemberRole}
-              onChange={(e) =>
-                setNewMemberRole(e.target.value as "admin" | "lead" | "member" | "viewer")
-              }
-              className="px-3 py-2 bg-surface-raised border border-surface-deep rounded-xl text-xs text-text-primary focus:outline-hidden"
-            >
-              <option value="member">Member</option>
-              <option value="lead">Lead</option>
-              <option value="admin">Admin</option>
-              <option value="viewer">Viewer</option>
-            </select>
-            <button
-              type="submit"
-              disabled={addMemberMutation.isPending}
-              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white font-semibold text-xs rounded-xl transition-colors shadow-2xs disabled:opacity-50"
-            >
-              {addMemberMutation.isPending ? "Adding..." : "Add Member"}
-            </button>
+          <form onSubmit={handleAddMember} className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Search user by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSelectedUser(null);
+                      setShowDropdown(true);
+                    }}
+                    onFocus={() => setShowDropdown(true)}
+                    className="w-full pl-9 pr-3.5 py-2 bg-surface/50 border border-surface-deep rounded-xl text-xs text-text-primary focus:outline-hidden focus:border-accent focus:bg-white transition-colors"
+                  />
+                </div>
+
+                {showDropdown && searchQuery.trim().length >= 1 && filteredSearchResults && (
+                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-surface-deep rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-surface-deep">
+                    {filteredSearchResults.length > 0 ? (
+                      filteredSearchResults.map((foundUser) => (
+                        <button
+                          key={foundUser.id}
+                          type="button"
+                          onClick={() => handleSelectUser(foundUser)}
+                          className="w-full px-3 py-2 text-left hover:bg-surface-raised flex items-center justify-between text-xs transition-colors"
+                        >
+                          <div>
+                            <div className="font-semibold text-text-primary">{foundUser.display_name}</div>
+                            <div className="text-2xs text-text-muted font-mono">{foundUser.email}</div>
+                          </div>
+                          <span className="text-2xs font-mono text-accent">Select</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-3 text-2xs text-text-muted text-center">No matching unassigned users found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <select
+                value={newMemberRole}
+                onChange={(e) =>
+                  setNewMemberRole(e.target.value as "admin" | "lead" | "member" | "viewer")
+                }
+                className="px-3 py-2 bg-surface-raised border border-surface-deep rounded-xl text-xs text-text-primary focus:outline-hidden"
+              >
+                <option value="member">Member</option>
+                <option value="lead">Lead</option>
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer</option>
+              </select>
+
+              <button
+                type="submit"
+                disabled={addMemberMutation.isPending || !selectedUser}
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-white font-semibold text-xs rounded-xl transition-colors shadow-2xs disabled:opacity-50"
+              >
+                {addMemberMutation.isPending ? "Adding..." : "Add Member"}
+              </button>
+            </div>
+
+            {selectedUser && (
+              <div className="text-2xs text-text-secondary bg-surface-raised/50 px-3 py-1.5 rounded-lg border border-surface-deep flex items-center justify-between">
+                <span>Selected: <strong>{selectedUser.display_name}</strong> ({selectedUser.email})</span>
+                <span className="font-mono text-text-muted text-3xs">{selectedUser.id}</span>
+              </div>
+            )}
           </form>
         </div>
       )}

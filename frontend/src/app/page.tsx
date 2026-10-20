@@ -240,9 +240,18 @@ export default function DashboardPage(): React.JSX.Element {
             <Users className="w-5 h-5 text-accent" />
             <span>Your Operational Teams</span>
           </div>
-          <span className="text-xs text-text-muted">
-            {teamsData?.length || 0} teams enrolled
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-text-muted">
+              {teamsData?.length || 0} teams enrolled
+            </span>
+            <Link
+              href="/teams/new"
+              className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white font-semibold text-xs rounded-xl transition-colors shadow-2xs flex items-center gap-1.5"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>New Team</span>
+            </Link>
+          </div>
         </div>
 
         {teamsLoading ? (

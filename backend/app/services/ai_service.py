@@ -13,6 +13,7 @@ from google import genai
 from google.genai import errors
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.team_member import TeamMember
@@ -122,6 +123,11 @@ class AIService:
 
         statement = (
             select(WorkItem, (1.0 - cosine_distance).label("similarity_score"))
+            .options(
+                selectinload(WorkItem.creator),
+                selectinload(WorkItem.team),
+                selectinload(WorkItem.assignee),
+            )
             .where(
                 WorkItem.team_id.in_(accessible_team_ids),
                 WorkItem.embedding.is_not(None),

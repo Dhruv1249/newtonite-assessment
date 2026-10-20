@@ -16,6 +16,8 @@ import {
   LogOut,
   Radio,
   ChevronDown,
+  Search,
+  GitBranch,
 } from "lucide-react";
 
 const DEMO_PERSONAS = [
@@ -98,6 +100,28 @@ export function Navbar(): React.JSX.Element {
               >
                 <PlusCircle className="w-4 h-4 text-accent" />
                 <span>New Item</span>
+              </Link>
+              <Link
+                href="/search"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive("/search")
+                    ? "bg-accent/15 text-accent font-semibold"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
+                }`}
+              >
+                <Search className="w-4 h-4" />
+                <span>AI Search</span>
+              </Link>
+              <Link
+                href="/workflows"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive("/workflows")
+                    ? "bg-accent/15 text-accent font-semibold"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
+                }`}
+              >
+                <GitBranch className="w-4 h-4" />
+                <span>Workflows</span>
               </Link>
             </nav>
           )}
