@@ -9,7 +9,6 @@ from sqlalchemy import select
 from app.database import async_database_engine, async_session_factory
 from app.main import app
 from app.models import Team, User, initialize_database_schema
-from app.seed import seed_database
 from app.services.auth_service import create_access_token
 
 
@@ -17,7 +16,6 @@ from app.services.auth_service import create_access_token
 async def setup_test_database() -> AsyncGenerator[None, None]:
     """Ensure database schema and standard seed records exist before executing test suites."""
     await initialize_database_schema(async_database_engine)
-    await seed_database()
     yield
     await async_database_engine.dispose()
 
