@@ -12,7 +12,7 @@ import math
 from typing import Any
 import uuid
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -36,11 +36,7 @@ class AIService:
         configured_key = (
             settings.gemini_api_key.strip() if settings.gemini_api_key else ""
         )
-        if (
-            configured_key
-            and len(configured_key) > 20
-            and not configured_key.startswith(("your-", "dummy", "placeholder"))
-        ):
+        if self._is_potential_api_key(configured_key):
             try:
                 client_options = types.HttpOptions(
                     timeout=2500,
@@ -52,6 +48,36 @@ class AIService:
                 )
             except Exception:
                 self._client = None
+
+    @staticmethod
+    def _is_potential_api_key(key: str) -> bool:
+        """Verify whether candidate key string is formatted like an authentic API key.
+
+        Filters out empty values and template placeholder strings copied directly
+        from sample environment configurations, such as 'replace_with_your_gemini_api_key'.
+
+        Args:
+            key: Candidate API key string.
+
+        Returns:
+            bool: True if key appears valid for client initialization.
+        """
+        if not key or len(key) < 20:
+            return False
+        lowered = key.lower()
+        placeholder_indicators = (
+            "replace",
+            "dummy",
+            "placeholder",
+            "your-",
+            "your_",
+            "example",
+            "todo",
+            "secret",
+        )
+        if any(indicator in lowered for indicator in placeholder_indicators):
+            return False
+        return True
 
     def _generate_fallback_embedding(
         self,
@@ -217,6 +243,8 @@ class AIService:
                 )
                 if response.embeddings and response.embeddings[0].values:
                     return list(response.embeddings[0].values)
+            except (errors.ClientError, errors.APIError):
+                self._client = None
             except Exception:
                 pass
 
@@ -257,6 +285,9 @@ class AIService:
             )
             if response.text:
                 return response.text.strip()
+        except (errors.ClientError, errors.APIError):
+            self._client = None
+            return ""
         except Exception:
             pass
 
@@ -277,6 +308,9 @@ class AIService:
                 if fallback_response.text
                 else ""
             )
+        except (errors.ClientError, errors.APIError):
+            self._client = None
+            return ""
         except Exception:
             return ""
 
