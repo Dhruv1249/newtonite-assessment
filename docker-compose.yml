@@ -24,6 +24,7 @@ services:
     container_name: opflow-backend
     restart: always
     environment:
+      PORT: 8000
       DATABASE_URL: postgresql+asyncpg://opflow_user:opflow_password@postgres:5432/opflow_db
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
